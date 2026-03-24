@@ -200,9 +200,10 @@ export default function OnboardingPage() {
 
       setImportCount(rows.length);
       setStep('done');
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Save failed:', err);
-      alert('Failed to save contacts. Please try again.');
+      const message = err instanceof Error ? err.message : JSON.stringify(err);
+      alert(`Failed to save contacts: ${message}`);
     } finally {
       setImporting(false);
     }
