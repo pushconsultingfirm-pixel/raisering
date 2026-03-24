@@ -63,11 +63,14 @@ export default function CallPage() {
 
         setUserId(user.id);
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('users')
           .select('organization_id, name')
           .eq('id', user.id)
           .single();
+        if (profileError) {
+          console.error('Profile query error:', profileError);
+        }
         if (!profile) { setCallState('no_session'); return; }
 
         setOrgId(profile.organization_id);

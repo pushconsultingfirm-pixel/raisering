@@ -33,12 +33,16 @@ export default function NewContactPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not logged in');
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('users')
           .select('organization_id')
           .eq('id', user.id)
           .single();
-        if (!profile) throw new Error('No profile found');
+        if (profileError) {
+          console.error('Profile query error:', profileError);
+          throw new Error(`Profile lookup failed: ${profileError.message}`);
+        }
+        if (!profile) throw new Error('No profile found for user ' + user.id);
 
         const { error: insertError } = await supabase.from('contacts').insert({
           organization_id: profile.organization_id,

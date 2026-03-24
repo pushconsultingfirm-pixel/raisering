@@ -48,11 +48,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('users')
           .select('*')
           .eq('id', authUser.id)
           .single();
+
+        if (profileError) {
+          console.error('Layout profile query failed:', profileError);
+        }
 
         if (profile) {
           setUser(profile);
