@@ -32,6 +32,7 @@ export default function CallPage() {
   const [orgName, setOrgName] = useState('Campaign');
   const [allContacts, setAllContacts] = useState<Contact[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [callStartTime, setCallStartTime] = useState<string | null>(null);
   const [callSeconds, setCallSeconds] = useState(0);
   const [idleSeconds, setIdleSeconds] = useState(0);
@@ -110,10 +111,10 @@ export default function CallPage() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [callState, sessionStats.callsMade]);
 
-  const queuedContacts = queue.filter(q => q.status === 'queued');
-  const currentItem = queuedContacts[0];
+  const currentItem = queue[currentIndex];
   const currentContact = currentItem?.contact;
   const askAmount = currentContact?.manual_ask_override ?? currentContact?.ai_recommended_ask;
+  const remainingCount = queue.filter(q => q.status === 'queued').length;
 
   function handleQuickStart() {
     if (allContacts.length === 0) return;
@@ -131,9 +132,6 @@ export default function CallPage() {
     setCallSeconds(0);
     setIdleSeconds(0);
     setCallStartTime(new Date().toISOString());
-    setQueue(prev => prev.map(q =>
-      q.id === currentItem.id ? { ...q, status: 'in_progress' } : q
-    ));
   }
 
   function handleEndCall() {
@@ -267,13 +265,6 @@ export default function CallPage() {
       }
     }
 
-    // Mark contact complete in queue
-    if (currentItem) {
-      setQueue(prev => prev.map(q =>
-        q.id === currentItem.id ? { ...q, status: 'completed' } : q
-      ));
-    }
-
     // Update stats
     const pledged = selectedOutcome === 'pledged' ? (parseFloat(pledgeAmount) || 0) : 0;
     setSessionStats(prev => ({
@@ -291,22 +282,22 @@ export default function CallPage() {
     setCallNotes('');
     setFollowUpDraft('');
 
-    // Check if more contacts
-    const remaining = queue.filter(q => q.status === 'queued' && q.id !== currentItem?.id);
-    if (remaining.length === 0) {
+    // Advance to next contact or finish
+    if (currentIndex + 1 >= queue.length) {
       setCallState('session_complete');
     } else {
+      setCurrentIndex(prev => prev + 1);
       setCallState('idle');
     }
   }
 
   function handleSkip() {
-    if (currentItem) {
-      setQueue(prev => prev.map(q =>
-        q.id === currentItem.id ? { ...q, status: 'skipped' } : q
-      ));
+    if (currentIndex + 1 >= queue.length) {
+      setCallState('session_complete');
+    } else {
+      setCurrentIndex(prev => prev + 1);
+      setCallState('idle');
     }
-    setCallState('idle');
     setSelectedOutcome(null);
     setPledgeAmount('');
     setCallNotes('');
@@ -411,7 +402,7 @@ export default function CallPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <div className="mb-4 flex items-center justify-between rounded-lg bg-white border border-gray-200 px-4 py-2 text-sm">
-        <span className="text-gray-500">{queuedContacts.length} remaining</span>
+        <span className="text-gray-500">{queue.length - currentIndex} remaining</span>
         <div className="flex gap-4">
           <span>{sessionStats.callsMade} calls</span>
           <span>{formatDuration(sessionStats.totalTalkSeconds)} talk</span>
@@ -558,7 +549,7 @@ export default function CallPage() {
             <div className="mt-6 flex gap-3">
               <button onClick={handleConfirmAndNext} disabled={!selectedOutcome}
                 className="flex-1 rounded-md bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition">
-                {queuedContacts.length > 1 ? 'Confirm & Next Call' : 'Confirm & Finish'}
+                {currentIndex + 1 < queue.length ? 'Confirm & Next Call' : 'Confirm & Finish'}
               </button>
               <button onClick={handleSkip}
                 className="rounded-md border border-gray-300 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
