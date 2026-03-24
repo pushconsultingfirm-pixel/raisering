@@ -184,25 +184,22 @@ export default function ImportContactsPage() {
   }
 
   function handleMappingComplete() {
-    const contacts: Partial<Contact>[] = csvData
-      .map(row => {
-        const name = mapping.name ? row[mapping.name] : '';
-        const phone = mapping.phone ? row[mapping.phone] : '';
-
-        if (!name || !phone) return null;
-
-        return {
-          name: name.trim(),
-          phone: phone.trim(),
-          email: mapping.email ? row[mapping.email]?.trim() || undefined : undefined,
-          occupation: mapping.occupation ? row[mapping.occupation]?.trim() || undefined : undefined,
-          employer: mapping.employer ? row[mapping.employer]?.trim() || undefined : undefined,
-          notes: mapping.notes ? row[mapping.notes]?.trim() || undefined : undefined,
-          manual_ask_override: mapping.ask_amount ? parseFloat(row[mapping.ask_amount]) || undefined : undefined,
-          source: 'csv' as ContactSource,
-        };
-      })
-      .filter((c): c is Partial<Contact> => c !== null);
+    const contacts: Partial<Contact>[] = [];
+    for (const row of csvData) {
+      const name = mapping.name ? row[mapping.name] : '';
+      const phone = mapping.phone ? row[mapping.phone] : '';
+      if (!name || !phone) continue;
+      contacts.push({
+        name: name.trim(),
+        phone: phone.trim(),
+        email: mapping.email ? row[mapping.email]?.trim() || undefined : undefined,
+        occupation: mapping.occupation ? row[mapping.occupation]?.trim() || undefined : undefined,
+        employer: mapping.employer ? row[mapping.employer]?.trim() || undefined : undefined,
+        notes: mapping.notes ? row[mapping.notes]?.trim() || undefined : undefined,
+        manual_ask_override: mapping.ask_amount ? parseFloat(row[mapping.ask_amount]) || undefined : undefined,
+        source: 'csv' as ContactSource,
+      });
+    }
 
     setImportedContacts(contacts);
     setStep('review');

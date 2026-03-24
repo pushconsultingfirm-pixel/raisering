@@ -310,28 +310,34 @@ export async function updateCall(id: string, updates: Partial<Call>): Promise<Ca
 }
 
 export async function getCallsForSession(sessionId: string): Promise<Call[]> {
+  // First get session_contact IDs, then query calls
+  const { data: scIds } = await db()
+    .from('session_contacts')
+    .select('id')
+    .eq('session_id', sessionId);
+
+  if (!scIds || scIds.length === 0) return [];
+
   const { data } = await db()
     .from('calls')
-    .select(`
-      *,
-      session_contact:session_contacts(
-        contact:contacts(name, phone)
-      )
-    `)
-    .in('session_contact_id',
-      db().from('session_contacts').select('id').eq('session_id', sessionId)
-    )
+    .select('*')
+    .in('session_contact_id', scIds.map(sc => sc.id))
     .order('started_at', { ascending: false });
   return data || [];
 }
 
 export async function getCallsForContact(contactId: string): Promise<Call[]> {
+  const { data: scIds } = await db()
+    .from('session_contacts')
+    .select('id')
+    .eq('contact_id', contactId);
+
+  if (!scIds || scIds.length === 0) return [];
+
   const { data } = await db()
     .from('calls')
     .select('*')
-    .in('session_contact_id',
-      db().from('session_contacts').select('id').eq('contact_id', contactId)
-    )
+    .in('session_contact_id', scIds.map(sc => sc.id))
     .order('started_at', { ascending: false });
   return data || [];
 }

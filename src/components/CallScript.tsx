@@ -10,7 +10,14 @@ interface CallScriptProps {
   campaignName?: string;
 }
 
-function generateScript(contact: Contact, callerName: string, campaignName: string) {
+interface ScriptSection {
+  label: string;
+  text: string;
+  highlight?: boolean;
+  subtle?: boolean;
+}
+
+function generateScript(contact: Contact, callerName: string, campaignName: string): Record<string, ScriptSection> {
   const firstName = contact.name.split(' ')[0];
   const askAmount = contact.manual_ask_override ?? contact.ai_recommended_ask;
   const fallbackAsk = askAmount ? Math.round(askAmount * 0.5) : null;
