@@ -43,48 +43,77 @@ export default function OnboardingPage() {
 
   function parseVCard(text: string): ParsedContact[] {
     const contacts: ParsedContact[] = [];
-    const cards = text.split('BEGIN:VCARD');
 
-    cards.forEach(card => {
-      if (!card.includes('END:VCARD')) return;
+    // Normalize line endings and unfold folded lines (RFC 2425)
+    const normalized = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\n[ \t]/g, '');
 
-      const getName = (c: string) => {
-        const fn = c.match(/FN[;:](.+)/);
-        if (fn) return fn[1].trim();
-        const n = c.match(/N[;:]([^;]+);([^;]+)/);
-        if (n) return `${n[2].trim()} ${n[1].trim()}`;
-        return null;
-      };
-      const getPhone = (c: string) => {
-        const tel = c.match(/TEL[^:]*:(.+)/);
-        return tel ? tel[1].trim().replace(/\s/g, '') : null;
-      };
-      const getEmail = (c: string) => {
-        const email = c.match(/EMAIL[^:]*:(.+)/);
-        return email ? email[1].trim() : undefined;
-      };
-      const getOrg = (c: string) => {
-        const org = c.match(/ORG[^:]*:(.+)/);
-        return org ? org[1].trim().replace(/;/g, ', ') : undefined;
-      };
-      const getTitle = (c: string) => {
-        const title = c.match(/TITLE[^:]*:(.+)/);
-        return title ? title[1].trim() : undefined;
-      };
+    const cards = normalized.split('BEGIN:VCARD');
 
-      const name = getName(card);
-      const phone = getPhone(card);
+    for (const card of cards) {
+      if (!card.includes('END:VCARD')) continue;
 
-      if (name && phone) {
-        contacts.push({
-          name,
-          phone,
-          email: getEmail(card),
-          employer: getOrg(card),
-          occupation: getTitle(card),
-        });
+      const lines = card.split('\n');
+
+      let name = '';
+      let phone = '';
+      let email: string | undefined;
+      let employer: string | undefined;
+      let occupation: string | undefined;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+
+        // Full name (FN)
+        if (trimmed.match(/^FN[;:]/i)) {
+          const val = trimmed.replace(/^FN[^:]*:/i, '').trim();
+          if (val) name = val;
+        }
+
+        // Structured name (N) — fallback if no FN
+        if (!name && trimmed.match(/^N[;:]/i)) {
+          const val = trimmed.replace(/^N[^:]*:/i, '').trim();
+          const parts = val.split(';');
+          if (parts.length >= 2) {
+            const firstName = (parts[1] || '').trim();
+            const lastName = (parts[0] || '').trim();
+            if (firstName || lastName) name = `${firstName} ${lastName}`.trim();
+          }
+        }
+
+        // Phone — take first one found
+        if (!phone && trimmed.match(/^TEL[;:]/i)) {
+          const val = trimmed.replace(/^TEL[^:]*:/i, '').trim();
+          const cleaned = val.replace(/[\s\-().]/g, '');
+          if (cleaned.length >= 7) phone = cleaned;
+        }
+
+        // Email — take first one found
+        if (!email && trimmed.match(/^EMAIL[;:]/i)) {
+          const val = trimmed.replace(/^EMAIL[^:]*:/i, '').trim();
+          if (val.includes('@')) email = val;
+        }
+
+        // Organization
+        if (!employer && trimmed.match(/^ORG[;:]/i)) {
+          const val = trimmed.replace(/^ORG[^:]*:/i, '').trim();
+          if (val) employer = val.replace(/;+/g, ', ').replace(/, *$/, '');
+        }
+
+        // Title
+        if (!occupation && trimmed.match(/^TITLE[;:]/i)) {
+          const val = trimmed.replace(/^TITLE[^:]*:/i, '').trim();
+          if (val) occupation = val;
+        }
       }
-    });
+
+      // Only add if we have at least a name and phone
+      if (name && phone) {
+        contacts.push({ name, phone, email, employer, occupation });
+      }
+    }
 
     return contacts;
   }
@@ -119,10 +148,15 @@ export default function OnboardingPage() {
       const text = event.target?.result as string;
       let contacts: ParsedContact[];
 
-      if (file.name.endsWith('.vcf') || file.type.includes('vcard')) {
+      if (file.name.endsWith('.vcf') || file.type.includes('vcard') || text.includes('BEGIN:VCARD')) {
         contacts = parseVCard(text);
       } else {
         contacts = parseCSV(text);
+      }
+
+      if (contacts.length === 0) {
+        alert(`No contacts with phone numbers found in this file. Make sure the file contains contact data with phone numbers.`);
+        return;
       }
 
       setImportedContacts(contacts);
@@ -434,7 +468,7 @@ export default function OnboardingPage() {
             </svg>
             <p className="mt-2 text-sm font-medium text-gray-700">Upload your .vcf file</p>
             <p className="mt-1 text-xs text-gray-500">Tap to select the file from your device</p>
-            <input type="file" className="hidden" accept=".vcf,text/vcard,text/x-vcard" onChange={handleFileUpload} />
+            <input type="file" className="hidden" accept="*/*,.vcf,.csv" onChange={handleFileUpload} />
           </label>
         </div>
       </div>
@@ -485,13 +519,22 @@ export default function OnboardingPage() {
         <div className="mt-6 flex gap-3">
           <button
             onClick={() => {
-              const valid = manualContacts.filter(c => c.name && c.phone);
-              if (valid.length === 0) return;
+              const valid: ParsedContact[] = manualContacts
+                .filter(c => c.name.trim() && c.phone.trim())
+                .map(c => ({
+                  name: c.name.trim(),
+                  phone: c.phone.trim(),
+                  email: c.email.trim() || undefined,
+                }));
+              if (valid.length === 0) {
+                alert('Please enter at least one contact with a name and phone number.');
+                return;
+              }
               saveContacts(valid, 'manual');
             }}
-            disabled={importing || manualContacts.every(c => !c.name || !c.phone)}
+            disabled={importing || manualContacts.every(c => !c.name.trim() || !c.phone.trim())}
             className="flex-1 rounded-md bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition">
-            {importing ? 'Saving...' : `Save ${manualContacts.filter(c => c.name && c.phone).length} Contacts`}
+            {importing ? 'Saving...' : `Save ${manualContacts.filter(c => c.name.trim() && c.phone.trim()).length} Contacts`}
           </button>
         </div>
       </div>
@@ -515,7 +558,7 @@ export default function OnboardingPage() {
             </svg>
             <p className="mt-2 text-sm font-medium text-gray-700">Click to upload or drag and drop</p>
             <p className="mt-1 text-xs text-gray-500">.csv or .vcf files</p>
-            <input type="file" className="hidden" accept=".csv,.vcf,text/csv,text/vcard,text/plain" onChange={handleFileUpload} />
+            <input type="file" className="hidden" accept="*/*,.csv,.vcf" onChange={handleFileUpload} />
           </label>
         </div>
 

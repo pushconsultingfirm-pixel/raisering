@@ -131,53 +131,58 @@ export default function ImportContactsPage() {
 
   function handleVCardImport(text: string) {
     const contacts: Partial<Contact>[] = [];
-    const cards = text.split('BEGIN:VCARD');
 
-    cards.forEach(card => {
-      if (!card.includes('END:VCARD')) return;
+    // Normalize line endings and unfold folded lines
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n[ \t]/g, '');
+    const cards = normalized.split('BEGIN:VCARD');
 
-      const getName = (card: string) => {
-        const fn = card.match(/FN[;:](.+)/);
-        if (fn) return fn[1].trim();
-        const n = card.match(/N[;:]([^;]+);([^;]+)/);
-        if (n) return `${n[2].trim()} ${n[1].trim()}`;
-        return null;
-      };
+    for (const card of cards) {
+      if (!card.includes('END:VCARD')) continue;
+      const lines = card.split('\n');
 
-      const getPhone = (card: string) => {
-        const tel = card.match(/TEL[^:]*:(.+)/);
-        return tel ? tel[1].trim().replace(/\s/g, '') : null;
-      };
+      let name = '';
+      let phone = '';
+      let email: string | undefined;
+      let employer: string | undefined;
+      let occupation: string | undefined;
 
-      const getEmail = (card: string) => {
-        const email = card.match(/EMAIL[^:]*:(.+)/);
-        return email ? email[1].trim() : null;
-      };
-
-      const getOrg = (card: string) => {
-        const org = card.match(/ORG[^:]*:(.+)/);
-        return org ? org[1].trim().replace(/;/g, ', ') : null;
-      };
-
-      const getTitle = (card: string) => {
-        const title = card.match(/TITLE[^:]*:(.+)/);
-        return title ? title[1].trim() : null;
-      };
-
-      const name = getName(card);
-      const phone = getPhone(card);
+      for (const line of lines) {
+        const t = line.trim();
+        if (t.match(/^FN[;:]/i)) {
+          const val = t.replace(/^FN[^:]*:/i, '').trim();
+          if (val) name = val;
+        }
+        if (!name && t.match(/^N[;:]/i)) {
+          const val = t.replace(/^N[^:]*:/i, '').trim();
+          const parts = val.split(';');
+          if (parts.length >= 2) {
+            const first = (parts[1] || '').trim();
+            const last = (parts[0] || '').trim();
+            if (first || last) name = `${first} ${last}`.trim();
+          }
+        }
+        if (!phone && t.match(/^TEL[;:]/i)) {
+          const val = t.replace(/^TEL[^:]*:/i, '').trim().replace(/[\s\-().]/g, '');
+          if (val.length >= 7) phone = val;
+        }
+        if (!email && t.match(/^EMAIL[;:]/i)) {
+          const val = t.replace(/^EMAIL[^:]*:/i, '').trim();
+          if (val.includes('@')) email = val;
+        }
+        if (!employer && t.match(/^ORG[;:]/i)) {
+          const val = t.replace(/^ORG[^:]*:/i, '').trim();
+          if (val) employer = val.replace(/;+/g, ', ').replace(/, *$/, '');
+        }
+        if (!occupation && t.match(/^TITLE[;:]/i)) {
+          const val = t.replace(/^TITLE[^:]*:/i, '').trim();
+          if (val) occupation = val;
+        }
+      }
 
       if (name && phone) {
-        contacts.push({
-          name,
-          phone,
-          email: getEmail(card) || undefined,
-          employer: getOrg(card) || undefined,
-          occupation: getTitle(card) || undefined,
-          source: 'vcard',
-        });
+        contacts.push({ name, phone, email, employer, occupation, source: 'vcard' });
       }
-    });
+    }
 
     setImportedContacts(contacts);
     setStep('review');
