@@ -218,7 +218,7 @@ export default function OnboardingPage() {
     return (
       <div className="mx-auto max-w-lg py-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Welcome to RaiseRing</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Welcome to RingRaise</h1>
           <p className="mt-3 text-lg text-gray-600">
             Let&apos;s set up your call time program. First, we need your contacts — the people you&apos;ll be calling to raise money.
           </p>

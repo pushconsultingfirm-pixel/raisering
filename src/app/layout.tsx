@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "RaiseRing",
+  title: "RingRaise",
   description: "AI-powered call time tools for campaigns and nonprofits",
 };
 

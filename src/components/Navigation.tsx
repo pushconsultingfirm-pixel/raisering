@@ -44,7 +44,7 @@ export default function Navigation({ userRole, userName, orgName }: {
       <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-800 bg-gray-900 px-6 pb-4">
           <div className="flex h-16 shrink-0 items-center">
-            <h1 className="text-xl font-bold text-white">RaiseRing</h1>
+            <h1 className="text-xl font-bold text-white">RingRaise</h1>
           </div>
           <div className="text-sm text-gray-400">
             <p className="font-medium text-white">{orgName}</p>
@@ -94,7 +94,7 @@ export default function Navigation({ userRole, userName, orgName }: {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
           </svg>
         </button>
-        <h1 className="flex-1 text-sm font-semibold text-white">RaiseRing</h1>
+        <h1 className="flex-1 text-sm font-semibold text-white">RingRaise</h1>
         <span className="text-xs text-gray-400">{orgName}</span>
       </div>
 
@@ -104,7 +104,7 @@ export default function Navigation({ userRole, userName, orgName }: {
           <div className="fixed inset-0 bg-gray-600/75" onClick={() => setMobileMenuOpen(false)} />
           <div className="fixed inset-y-0 left-0 z-50 w-72 bg-gray-900 px-6 pb-4 pt-5">
             <div className="flex items-center justify-between">
-              <h1 className="text-xl font-bold text-white">RaiseRing</h1>
+              <h1 className="text-xl font-bold text-white">RingRaise</h1>
               <button
                 type="button"
                 className="-m-2.5 p-2.5 text-gray-400"

@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-full flex-col justify-center px-6 py-12">
       <div className="mx-auto w-full max-w-sm">
-        <h1 className="text-center text-3xl font-bold text-gray-900">RaiseRing</h1>
+        <h1 className="text-center text-3xl font-bold text-gray-900">RingRaise</h1>
         <p className="mt-2 text-center text-sm text-gray-500">
           AI-powered call time tools
         </p>
