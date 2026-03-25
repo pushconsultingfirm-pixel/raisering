@@ -49,6 +49,7 @@ export default function CallPage() {
   const [sessionStats, setSessionStats] = useState({
     callsMade: 0,
     totalTalkSeconds: 0,
+    totalIdleSeconds: 0,
     totalPledged: 0,
   });
 
@@ -105,17 +106,18 @@ export default function CallPage() {
     load();
   }, []);
 
-  // Timer
+  // Timer — tracks both call time and idle time between calls
   useEffect(() => {
     if (callState === 'on_call') {
       timerRef.current = setInterval(() => setCallSeconds(s => s + 1), 1000);
-    } else if (callState === 'idle' && sessionStats.callsMade > 0) {
+    } else if (callState === 'idle') {
+      // Always track idle time when in the queue, even before the first call
       timerRef.current = setInterval(() => setIdleSeconds(s => s + 1), 1000);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [callState, sessionStats.callsMade]);
+  }, [callState]);
 
   const currentItem = queue[currentIndex];
   const currentContact = currentItem?.contact;
@@ -134,6 +136,13 @@ export default function CallPage() {
 
   function handleStartCall() {
     if (!currentItem) return;
+    // Capture idle time before starting the call
+    if (idleSeconds > 0) {
+      setSessionStats(prev => ({
+        ...prev,
+        totalIdleSeconds: prev.totalIdleSeconds + idleSeconds,
+      }));
+    }
     setCallState('on_call');
     setCallSeconds(0);
     setIdleSeconds(0);
@@ -280,6 +289,7 @@ export default function CallPage() {
     setSessionStats(prev => ({
       callsMade: prev.callsMade + 1,
       totalTalkSeconds: prev.totalTalkSeconds + callSeconds,
+      totalIdleSeconds: prev.totalIdleSeconds,
       totalPledged: prev.totalPledged + pledged,
     }));
 
@@ -358,8 +368,11 @@ export default function CallPage() {
 
   // ---- SESSION COMPLETE ----
   if (callState === 'session_complete') {
+    const totalSessionSeconds = sessionStats.totalTalkSeconds + sessionStats.totalIdleSeconds;
     const dollarsPerHour = sessionStats.totalTalkSeconds > 0
       ? (sessionStats.totalPledged / (sessionStats.totalTalkSeconds / 3600)) : 0;
+    const efficiency = totalSessionSeconds > 0
+      ? Math.round((sessionStats.totalTalkSeconds / totalSessionSeconds) * 100) : 0;
 
     return (
       <div className="mx-auto max-w-lg text-center py-12">
@@ -385,6 +398,18 @@ export default function CallPage() {
           <div className="rounded-lg bg-white border border-gray-200 p-4">
             <p className="text-xs text-gray-500 uppercase">$/Hour</p>
             <p className="text-3xl font-bold text-gray-900">{formatCurrency(Math.round(dollarsPerHour))}</p>
+          </div>
+          <div className="rounded-lg bg-white border border-gray-200 p-4">
+            <p className="text-xs text-gray-500 uppercase">Idle Time</p>
+            <p className={`text-3xl font-bold ${sessionStats.totalIdleSeconds > sessionStats.totalTalkSeconds ? 'text-red-600' : 'text-amber-600'}`}>
+              {formatDuration(sessionStats.totalIdleSeconds)}
+            </p>
+          </div>
+          <div className="rounded-lg bg-white border border-gray-200 p-4">
+            <p className="text-xs text-gray-500 uppercase">Efficiency</p>
+            <p className={`text-3xl font-bold ${efficiency >= 70 ? 'text-green-600' : efficiency >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {efficiency}%
+            </p>
           </div>
         </div>
         <div className="mt-8 flex justify-center gap-3">
@@ -416,6 +441,9 @@ export default function CallPage() {
         <div className="flex gap-4">
           <span>{sessionStats.callsMade} calls</span>
           <span>{formatDuration(sessionStats.totalTalkSeconds)} talk</span>
+          {sessionStats.totalIdleSeconds > 0 && (
+            <span className="text-amber-600">{formatDuration(sessionStats.totalIdleSeconds)} idle</span>
+          )}
           <span className="font-medium text-green-600">{formatCurrency(sessionStats.totalPledged)} pledged</span>
         </div>
       </div>
@@ -568,26 +596,7 @@ export default function CallPage() {
                 className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
             </div>
 
-            {followUpDraft && (
-              <div className="mt-4">
-                <label className="text-sm font-medium text-gray-700">Follow-Up Message</label>
-                <textarea value={followUpDraft} onChange={e => setFollowUpDraft(e.target.value)} rows={3}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
-                <div className="mt-2 flex gap-2">
-                  <button onClick={() => handleSendFollowUp('sms')}
-                    className="rounded-md bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-200">
-                    Send as Text
-                  </button>
-                  {currentContact.email && (
-                    <button onClick={() => handleSendFollowUp('email')}
-                      className="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200">
-                      Send as Email
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-
+            {/* Confirm & Next — always visible and prominent */}
             <div className="mt-6 flex gap-3">
               <button onClick={handleConfirmAndNext} disabled={!selectedOutcome}
                 className="flex-1 rounded-md bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition">
@@ -598,6 +607,31 @@ export default function CallPage() {
                 Skip
               </button>
             </div>
+
+            {/* Follow-up — optional, below confirm */}
+            {followUpDraft && (
+              <details className="mt-4 rounded-md border border-gray-200 bg-gray-50">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-gray-700 hover:text-indigo-600">
+                  Send Follow-Up Message (optional)
+                </summary>
+                <div className="px-3 pb-3">
+                  <textarea value={followUpDraft} onChange={e => setFollowUpDraft(e.target.value)} rows={3}
+                    className="mt-2 w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" />
+                  <div className="mt-2 flex gap-2">
+                    <button onClick={() => handleSendFollowUp('sms')}
+                      className="rounded-md bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-200">
+                      Send as Text
+                    </button>
+                    {currentContact.email && (
+                      <button onClick={() => handleSendFollowUp('email')}
+                        className="rounded-md bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200">
+                        Send as Email
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </details>
+            )}
           </div>
         )}
       </div>

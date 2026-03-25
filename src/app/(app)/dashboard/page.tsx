@@ -4,12 +4,21 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase';
 import { formatCurrency, formatDuration } from '@/lib/types';
-import type { Call, Pledge } from '@/lib/types';
+import type { Pledge } from '@/lib/types';
+
+interface CallWithContact {
+  id: string;
+  started_at: string;
+  duration_seconds: number | null;
+  ai_outcome: string | null;
+  ai_pledge_amount: number | null;
+  session_contacts: { contact: { name: string; phone: string } | null } | null;
+}
 
 export default function DashboardPage() {
   const [contactCount, setContactCount] = useState(0);
   const [sessionCount, setSessionCount] = useState(0);
-  const [calls, setCalls] = useState<Call[]>([]);
+  const [calls, setCalls] = useState<CallWithContact[]>([]);
   const [pledges, setPledges] = useState<Pledge[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +47,7 @@ export default function DashboardPage() {
         const [contactsRes, sessionsRes, callsRes, pledgesRes] = await Promise.all([
           supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
           supabase.from('sessions').select('id', { count: 'exact', head: true }).eq('organization_id', orgId),
-          supabase.from('calls').select('*').eq('caller_id', user.id).order('started_at', { ascending: false }).limit(20),
+          supabase.from('calls').select('*, session_contacts(contact:contacts(name, phone))').eq('caller_id', user.id).order('started_at', { ascending: false }).limit(20),
           supabase.from('pledges').select('*').eq('organization_id', orgId),
         ]);
 
@@ -98,6 +107,7 @@ export default function DashboardPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Donor</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Outcome</th>
@@ -105,8 +115,11 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {calls.slice(0, 10).map(call => (
+                {calls.slice(0, 10).map(call => {
+                  const donorName = call.session_contacts?.contact?.name || 'Unknown';
+                  return (
                   <tr key={call.id}>
+                    <td className="px-4 py-2 text-sm font-medium text-gray-900">{donorName}</td>
                     <td className="px-4 py-2 text-sm text-gray-700">
                       {new Date(call.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
@@ -128,7 +141,8 @@ export default function DashboardPage() {
                       {call.ai_pledge_amount ? formatCurrency(call.ai_pledge_amount) : ''}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

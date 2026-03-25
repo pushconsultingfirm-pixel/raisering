@@ -80,6 +80,8 @@ export function useTranscription(): TranscriptionState {
         mediaRecorder.start(250);
       };
 
+      let lastSpeaker = -1;
+
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -91,14 +93,22 @@ export function useTranscription(): TranscriptionState {
             if (!text) return;
 
             if (data.is_final) {
-              // Final result — add to permanent transcript
+              // Check for speaker diarization
+              const words = alt.words || [];
+              const speaker = words.length > 0 ? words[0].speaker : undefined;
+
+              let prefix = '';
+              if (speaker !== undefined && speaker !== lastSpeaker) {
+                prefix = speaker === 0 ? '\n[Caller] ' : `\n[Speaker ${speaker + 1}] `;
+                lastSpeaker = speaker;
+              }
+
               setTranscript(prev => {
-                const separator = prev ? '\n' : '';
-                return prev + separator + text;
+                const separator = prev && !prefix ? ' ' : '';
+                return prev + separator + prefix + text;
               });
               setInterimText('');
             } else {
-              // Interim result — show as "typing" indicator
               setInterimText(text);
             }
           }
