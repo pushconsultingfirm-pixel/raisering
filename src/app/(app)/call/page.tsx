@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { formatCurrency, formatDuration } from '@/lib/types';
 import { createClient } from '@/lib/supabase';
 import CallScript from '@/components/CallScript';
+import { useTranscription } from '@/hooks/useTranscription';
 import type { Contact, CallOutcome } from '@/lib/types';
 
 type CallState = 'loading' | 'no_session' | 'idle' | 'on_call' | 'post_call' | 'session_complete';
@@ -25,6 +26,11 @@ interface QueueItem {
 }
 
 export default function CallPage() {
+  const {
+    isListening, transcript, interimText, error: transcriptionError,
+    startListening, stopListening, clearTranscript,
+  } = useTranscription();
+
   const [callState, setCallState] = useState<CallState>('loading');
   const [userId, setUserId] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -132,11 +138,14 @@ export default function CallPage() {
     setCallSeconds(0);
     setIdleSeconds(0);
     setCallStartTime(new Date().toISOString());
+    clearTranscript();
+    startListening();
   }
 
   function handleEndCall() {
     setCallState('post_call');
     if (timerRef.current) clearInterval(timerRef.current);
+    stopListening();
 
     if (currentContact) {
       setFollowUpDraft(
@@ -229,6 +238,7 @@ export default function CallPage() {
             started_at: callStartTime,
             ended_at: new Date().toISOString(),
             duration_seconds: callSeconds,
+            transcript_raw: transcript || null,
             ai_outcome: selectedOutcome,
             ai_pledge_amount: selectedOutcome === 'pledged' ? parseFloat(pledgeAmount) || 0 : null,
             notes: callNotes || null,
@@ -476,8 +486,32 @@ export default function CallPage() {
               <span className="text-lg font-mono">{formatDuration(callSeconds)}</span>
             </div>
             <div className="border-x border-gray-200 bg-white p-4 min-h-[200px]">
-              <p className="text-xs font-medium text-gray-400 uppercase mb-2">Live Transcript</p>
-              <p className="text-sm text-gray-400 italic">Transcription will be available once Twilio Voice is connected...</p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-400 uppercase">Live Transcript</p>
+                {isListening && (
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500"></span>
+                    Listening
+                  </span>
+                )}
+              </div>
+              {transcriptionError && (
+                <p className="text-sm text-red-500 mb-2">{transcriptionError}</p>
+              )}
+              {transcript || interimText ? (
+                <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {transcript}
+                  {interimText && (
+                    <span className="text-gray-400 italic">{transcript ? '\n' : ''}{interimText}</span>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 italic">
+                  {isListening
+                    ? 'Listening... start speaking and the transcript will appear here.'
+                    : 'Put your phone on speaker and the AI will transcribe the conversation.'}
+                </p>
+              )}
             </div>
             <button onClick={handleEndCall}
               className="w-full rounded-b-lg bg-red-600 py-3 text-sm font-semibold text-white hover:bg-red-700 transition">
@@ -490,6 +524,14 @@ export default function CallPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-6">
             <h3 className="text-lg font-semibold text-gray-900">Call Summary</h3>
             <p className="text-sm text-gray-500">{currentContact.name} &middot; {formatDuration(callSeconds)}</p>
+
+            {/* Transcript review */}
+            {transcript && (
+              <div className="mt-4 rounded-md bg-gray-50 border border-gray-200 p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-medium text-gray-500 uppercase mb-1">Transcript</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{transcript}</p>
+              </div>
+            )}
 
             <div className="mt-4">
               <p className="text-sm font-medium text-gray-700 mb-2">Outcome</p>
